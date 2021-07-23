@@ -670,17 +670,17 @@ CREATE INDEX index_pull_requests_on_user_id ON public.pull_requests USING btree 
 
 
 --
--- Name: index_refs_on_repository_id; Type: INDEX; Schema: public; Owner: -
+-- Name: index_refs_on_repository_id_and_type_and_name; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX index_refs_on_repository_id ON public.refs USING btree (repository_id);
+CREATE UNIQUE INDEX index_refs_on_repository_id_and_type_and_name ON public.refs USING btree (repository_id, type, name);
 
 
 --
--- Name: index_repositories_on_server_provider_id; Type: INDEX; Schema: public; Owner: -
+-- Name: index_repositories_on_server_provider_id_and_name; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX index_repositories_on_server_provider_id ON public.repositories USING btree (server_provider_id);
+CREATE UNIQUE INDEX index_repositories_on_server_provider_id_and_name ON public.repositories USING btree (server_provider_id, name);
 
 
 --
@@ -716,6 +716,13 @@ CREATE INDEX index_server_provider_permissions_on_user_id ON public.server_provi
 --
 
 CREATE INDEX index_server_provider_user_settings_on_server_provider_user_id ON public.server_provider_user_settings USING btree (server_provider_user_id);
+
+
+--
+-- Name: index_server_providers_on_type_and_name; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_server_providers_on_type_and_name ON public.server_providers USING btree (type, name);
 
 
 --
