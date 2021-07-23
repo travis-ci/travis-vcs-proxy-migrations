@@ -6,5 +6,7 @@ class CreateServerProviders < ActiveRecord::Migration[6.1]
       t.string :type, null: false
       t.string :listener_token
     end
+
+    add_index :server_providers, [:type, :name], unique: true
   end
 end
