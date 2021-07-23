@@ -719,10 +719,10 @@ CREATE INDEX index_server_provider_user_settings_on_server_provider_user_id ON p
 
 
 --
--- Name: index_server_providers_on_type_and_name; Type: INDEX; Schema: public; Owner: -
+-- Name: index_server_providers_on_type_and_url; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX index_server_providers_on_type_and_name ON public.server_providers USING btree (type, name);
+CREATE UNIQUE INDEX index_server_providers_on_type_and_url ON public.server_providers USING btree (type, url);
 
 
 --
