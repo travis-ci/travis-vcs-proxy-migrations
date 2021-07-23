@@ -199,7 +199,8 @@ CREATE TABLE public.repositories (
     id bigint NOT NULL,
     name character varying NOT NULL,
     url character varying NOT NULL,
-    server_provider_id integer NOT NULL
+    server_provider_id integer NOT NULL,
+    last_synced_at timestamp without time zone
 );
 
 
