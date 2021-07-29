@@ -720,6 +720,13 @@ CREATE INDEX index_server_provider_user_settings_on_server_provider_user_id ON p
 
 
 --
+-- Name: index_server_providers_on_listener_token; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_server_providers_on_listener_token ON public.server_providers USING btree (listener_token);
+
+
+--
 -- Name: index_server_providers_on_type_and_url; Type: INDEX; Schema: public; Owner: -
 --
 
