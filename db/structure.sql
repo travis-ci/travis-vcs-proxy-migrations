@@ -636,10 +636,10 @@ ALTER TABLE ONLY public.users
 
 
 --
--- Name: index_commits_on_ref_id; Type: INDEX; Schema: public; Owner: -
+-- Name: index_commits_on_ref_id_and_sha; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX index_commits_on_ref_id ON public.commits USING btree (ref_id);
+CREATE INDEX index_commits_on_ref_id_and_sha ON public.commits USING btree (ref_id, sha);
 
 
 --
