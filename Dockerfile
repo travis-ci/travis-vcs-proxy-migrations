@@ -2,9 +2,8 @@ FROM postgres:12.1
 
 LABEL maintainer Travis CI GmbH <support+travis-vcs-proxy-migrations-docker-images@travis-ci.com>
 
-# RUN mkdir /travis-vcs-proxy--migrations
-# WORKDIR /travis-vcs-proxy-migrations
-WORKDIR /srv/app
+RUN mkdir /travis-vcs-proxy-migrations
+WORKDIR /travis-vcs-proxy-migrations
 
 # ruby deps
 RUN apt-get update && \
@@ -17,13 +16,12 @@ RUN cd ruby-install-0.8.1/ && make install
 RUN rm -r ruby-install-0.8.1/
 
 # ruby
-# COPY . .
-# RUN ruby-install --system --no-install-deps ruby `cat .ruby-version`
-RUN ruby-install --system --no-install-deps ruby 3.0.1
+COPY . .
+RUN ruby-install --system --no-install-deps ruby `cat .ruby-version`
 
 # gem setup
 RUN apt-get install -y libpq-dev && rm -rf /var/lib/apt/lists/*
-# RUN gem install bundler -v 1.17.3
-# RUN bundle install
+RUN gem install bundler -v 1.17.3
+RUN bundle install
 
-ENTRYPOINT ["/srv/app/entrypoint.sh"]
+CMD /bin/bash
