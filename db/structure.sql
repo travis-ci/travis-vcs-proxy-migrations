@@ -35,6 +35,8 @@ CREATE TABLE public.commits (
     user_id integer NOT NULL,
     repository_id integer NOT NULL,
     ref_id integer NOT NULL,
+    message character varying,
+    committed_at timestamp without time zone NOT NULL,
     created_at timestamp without time zone NOT NULL
 );
 
@@ -59,18 +61,56 @@ ALTER SEQUENCE public.commits_id_seq OWNED BY public.commits.id;
 
 
 --
+-- Name: oauth_access_grants; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.oauth_access_grants (
+    id bigint NOT NULL,
+    resource_owner_id bigint NOT NULL,
+    application_id bigint NOT NULL,
+    token character varying NOT NULL,
+    expires_in integer NOT NULL,
+    redirect_uri text NOT NULL,
+    created_at timestamp without time zone NOT NULL,
+    revoked_at timestamp without time zone,
+    scopes character varying DEFAULT ''::character varying NOT NULL
+);
+
+
+--
+-- Name: oauth_access_grants_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.oauth_access_grants_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: oauth_access_grants_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.oauth_access_grants_id_seq OWNED BY public.oauth_access_grants.id;
+
+
+--
 -- Name: oauth_access_tokens; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.oauth_access_tokens (
     id bigint NOT NULL,
-    resource_owner_id integer NOT NULL,
-    application_id integer NOT NULL,
-    token character varying,
+    resource_owner_id bigint,
+    application_id bigint NOT NULL,
+    token character varying NOT NULL,
     refresh_token character varying,
     expires_in integer,
-    created_at timestamp without time zone,
-    revoked_at timestamp without time zone
+    revoked_at timestamp without time zone,
+    created_at timestamp without time zone NOT NULL,
+    scopes character varying,
+    previous_refresh_token character varying DEFAULT ''::character varying NOT NULL
 );
 
 
@@ -100,10 +140,13 @@ ALTER SEQUENCE public.oauth_access_tokens_id_seq OWNED BY public.oauth_access_to
 CREATE TABLE public.oauth_applications (
     id bigint NOT NULL,
     name character varying NOT NULL,
-    uuid character varying NOT NULL,
+    uid character varying NOT NULL,
     secret character varying NOT NULL,
-    redirect_uri character varying NOT NULL,
-    owner_id integer
+    redirect_uri text NOT NULL,
+    scopes character varying DEFAULT ''::character varying NOT NULL,
+    confidential boolean DEFAULT true NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
 );
 
 
@@ -440,10 +483,52 @@ ALTER SEQUENCE public.users_id_seq OWNED BY public.users.id;
 
 
 --
+-- Name: webhooks; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.webhooks (
+    id bigint NOT NULL,
+    repository_id bigint,
+    name character varying,
+    url character varying,
+    active boolean,
+    insecure_ssl boolean,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: webhooks_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.webhooks_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: webhooks_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.webhooks_id_seq OWNED BY public.webhooks.id;
+
+
+--
 -- Name: commits id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.commits ALTER COLUMN id SET DEFAULT nextval('public.commits_id_seq'::regclass);
+
+
+--
+-- Name: oauth_access_grants id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_access_grants ALTER COLUMN id SET DEFAULT nextval('public.oauth_access_grants_id_seq'::regclass);
 
 
 --
@@ -524,6 +609,13 @@ ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_
 
 
 --
+-- Name: webhooks id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.webhooks ALTER COLUMN id SET DEFAULT nextval('public.webhooks_id_seq'::regclass);
+
+
+--
 -- Name: ar_internal_metadata ar_internal_metadata_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -537,6 +629,14 @@ ALTER TABLE ONLY public.ar_internal_metadata
 
 ALTER TABLE ONLY public.commits
     ADD CONSTRAINT commits_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: oauth_access_grants oauth_access_grants_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_access_grants
+    ADD CONSTRAINT oauth_access_grants_pkey PRIMARY KEY (id);
 
 
 --
@@ -636,10 +736,18 @@ ALTER TABLE ONLY public.users
 
 
 --
--- Name: index_commits_on_ref_id_and_sha; Type: INDEX; Schema: public; Owner: -
+-- Name: webhooks webhooks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-CREATE INDEX index_commits_on_ref_id_and_sha ON public.commits USING btree (ref_id, sha);
+ALTER TABLE ONLY public.webhooks
+    ADD CONSTRAINT webhooks_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: index_commits_on_ref_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_commits_on_ref_id ON public.commits USING btree (ref_id);
 
 
 --
@@ -654,6 +762,62 @@ CREATE INDEX index_commits_on_repository_id ON public.commits USING btree (repos
 --
 
 CREATE INDEX index_commits_on_user_id ON public.commits USING btree (user_id);
+
+
+--
+-- Name: index_oauth_access_grants_on_application_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_oauth_access_grants_on_application_id ON public.oauth_access_grants USING btree (application_id);
+
+
+--
+-- Name: index_oauth_access_grants_on_resource_owner_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_oauth_access_grants_on_resource_owner_id ON public.oauth_access_grants USING btree (resource_owner_id);
+
+
+--
+-- Name: index_oauth_access_grants_on_token; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_oauth_access_grants_on_token ON public.oauth_access_grants USING btree (token);
+
+
+--
+-- Name: index_oauth_access_tokens_on_application_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_oauth_access_tokens_on_application_id ON public.oauth_access_tokens USING btree (application_id);
+
+
+--
+-- Name: index_oauth_access_tokens_on_refresh_token; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_oauth_access_tokens_on_refresh_token ON public.oauth_access_tokens USING btree (refresh_token);
+
+
+--
+-- Name: index_oauth_access_tokens_on_resource_owner_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_oauth_access_tokens_on_resource_owner_id ON public.oauth_access_tokens USING btree (resource_owner_id);
+
+
+--
+-- Name: index_oauth_access_tokens_on_token; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_oauth_access_tokens_on_token ON public.oauth_access_tokens USING btree (token);
+
+
+--
+-- Name: index_oauth_applications_on_uid; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_oauth_applications_on_uid ON public.oauth_applications USING btree (uid);
 
 
 --
@@ -674,7 +838,7 @@ CREATE INDEX index_pull_requests_on_user_id ON public.pull_requests USING btree 
 -- Name: index_refs_on_repository_id_and_type_and_name; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX index_refs_on_repository_id_and_type_and_name ON public.refs USING btree (repository_id, type, name);
+CREATE UNIQUE INDEX index_refs_on_repository_id_and_type_and_name ON public.refs USING btree (repository_id, name, type);
 
 
 --
@@ -720,20 +884,6 @@ CREATE INDEX index_server_provider_user_settings_on_server_provider_user_id ON p
 
 
 --
--- Name: index_server_providers_on_listener_token; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX index_server_providers_on_listener_token ON public.server_providers USING btree (listener_token);
-
-
---
--- Name: index_server_providers_on_type_and_url; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX index_server_providers_on_type_and_url ON public.server_providers USING btree (type, url);
-
-
---
 -- Name: index_settings_on_target; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -769,6 +919,13 @@ CREATE UNIQUE INDEX index_users_on_jti ON public.users USING btree (jti);
 
 
 --
+-- Name: index_webhooks_on_repository_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_webhooks_on_repository_id ON public.webhooks USING btree (repository_id);
+
+
+--
 -- Name: pull_requests fk_rails_01ee288f83; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -790,6 +947,14 @@ ALTER TABLE ONLY public.repository_permissions
 
 ALTER TABLE ONLY public.pull_requests
     ADD CONSTRAINT fk_rails_0a83f07e14 FOREIGN KEY (head_id) REFERENCES public.commits(id);
+
+
+--
+-- Name: oauth_access_grants fk_rails_330c32d8d9; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_access_grants
+    ADD CONSTRAINT fk_rails_330c32d8d9 FOREIGN KEY (resource_owner_id) REFERENCES public.users(id);
 
 
 --
@@ -865,6 +1030,14 @@ ALTER TABLE ONLY public.commits
 
 
 --
+-- Name: oauth_access_grants fk_rails_b4b53e07b8; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_access_grants
+    ADD CONSTRAINT fk_rails_b4b53e07b8 FOREIGN KEY (application_id) REFERENCES public.oauth_applications(id);
+
+
+--
 -- Name: commits fk_rails_c8b4639bab; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -873,11 +1046,11 @@ ALTER TABLE ONLY public.commits
 
 
 --
--- Name: oauth_applications fk_rails_cc886e315a; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: webhooks fk_rails_d5fe0af453; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.oauth_applications
-    ADD CONSTRAINT fk_rails_cc886e315a FOREIGN KEY (owner_id) REFERENCES public.users(id);
+ALTER TABLE ONLY public.webhooks
+    ADD CONSTRAINT fk_rails_d5fe0af453 FOREIGN KEY (repository_id) REFERENCES public.repositories(id);
 
 
 --
@@ -918,10 +1091,10 @@ INSERT INTO "schema_migrations" (version) VALUES
 ('20210615082153'),
 ('20210615082201'),
 ('20210615082204'),
-('20210615082222'),
-('20210615082227'),
 ('20210615082244'),
 ('20210615082254'),
-('20210615082353');
+('20210615082353'),
+('20210816151517'),
+('20210818115729');
 
 

@@ -5,6 +5,8 @@ class CreateCommits < ActiveRecord::Migration[6.1]
       t.integer :user_id, null: false
       t.integer :repository_id, null: false
       t.integer :ref_id, null: false
+      t.string :message
+      t.datetime :committed_at, null: false
       t.datetime :created_at, null: false
     end
 
