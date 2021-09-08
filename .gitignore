@@ -1,0 +1,13 @@
+.bundle
+.ruby-gemset
+log
+*.gem
+vendor
+.env
+.env.*
+
+#IDEs
+.idea
+
+.history
+migration.log
