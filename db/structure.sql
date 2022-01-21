@@ -11,8 +11,6 @@ SET row_security = off;
 
 SET default_tablespace = '';
 
-SET default_table_access_method = heap;
-
 --
 -- Name: ar_internal_metadata; Type: TABLE; Schema: public; Owner: -
 --
@@ -35,6 +33,8 @@ CREATE TABLE public.commits (
     user_id integer NOT NULL,
     repository_id integer NOT NULL,
     ref_id integer NOT NULL,
+    message character varying,
+    committed_at timestamp without time zone NOT NULL,
     created_at timestamp without time zone NOT NULL
 );
 
@@ -59,18 +59,56 @@ ALTER SEQUENCE public.commits_id_seq OWNED BY public.commits.id;
 
 
 --
+-- Name: oauth_access_grants; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.oauth_access_grants (
+    id bigint NOT NULL,
+    resource_owner_id bigint NOT NULL,
+    application_id bigint NOT NULL,
+    token character varying NOT NULL,
+    expires_in integer NOT NULL,
+    redirect_uri text NOT NULL,
+    created_at timestamp without time zone NOT NULL,
+    revoked_at timestamp without time zone,
+    scopes character varying DEFAULT ''::character varying NOT NULL
+);
+
+
+--
+-- Name: oauth_access_grants_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.oauth_access_grants_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: oauth_access_grants_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.oauth_access_grants_id_seq OWNED BY public.oauth_access_grants.id;
+
+
+--
 -- Name: oauth_access_tokens; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.oauth_access_tokens (
     id bigint NOT NULL,
-    resource_owner_id integer NOT NULL,
-    application_id integer NOT NULL,
-    token character varying,
+    resource_owner_id bigint,
+    application_id bigint NOT NULL,
+    token character varying NOT NULL,
     refresh_token character varying,
     expires_in integer,
-    created_at timestamp without time zone,
-    revoked_at timestamp without time zone
+    revoked_at timestamp without time zone,
+    created_at timestamp without time zone NOT NULL,
+    scopes character varying,
+    previous_refresh_token character varying DEFAULT ''::character varying NOT NULL
 );
 
 
@@ -100,10 +138,13 @@ ALTER SEQUENCE public.oauth_access_tokens_id_seq OWNED BY public.oauth_access_to
 CREATE TABLE public.oauth_applications (
     id bigint NOT NULL,
     name character varying NOT NULL,
-    uuid character varying NOT NULL,
+    uid character varying NOT NULL,
     secret character varying NOT NULL,
-    redirect_uri character varying NOT NULL,
-    owner_id integer
+    redirect_uri text NOT NULL,
+    scopes character varying DEFAULT ''::character varying NOT NULL,
+    confidential boolean DEFAULT true NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
 );
 
 
@@ -124,6 +165,97 @@ CREATE SEQUENCE public.oauth_applications_id_seq
 --
 
 ALTER SEQUENCE public.oauth_applications_id_seq OWNED BY public.oauth_applications.id;
+
+
+--
+-- Name: organization_permissions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.organization_permissions (
+    id bigint NOT NULL,
+    user_id integer NOT NULL,
+    organization_id integer NOT NULL,
+    permission integer NOT NULL
+);
+
+
+--
+-- Name: organization_permissions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.organization_permissions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: organization_permissions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.organization_permissions_id_seq OWNED BY public.organization_permissions.id;
+
+
+CREATE TABLE public.organization_invitations (
+    id bigint NOT NULL,
+    user_id integer NOT NULL,
+    organization_id integer NOT NULL,
+    permission integer NOT NULL,
+    token character varying NOT NULL,
+    created_at timestamp without time zone,
+);
+
+
+--
+-- Name: organization_permissions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.organization_invitations_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: organization_permissions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.organization_invitations_id_seq OWNED BY public.organization_invitations.id;
+
+
+--
+-- Name: organizations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.organizations (
+    id bigint NOT NULL,
+    name character varying NOT NULL,
+    description character varying NOT NULL,
+    listener_token character varying NOT NULL
+);
+
+
+--
+-- Name: organizations_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.organizations_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: organizations_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.organizations_id_seq OWNED BY public.organizations.id;
 
 
 --
@@ -198,8 +330,12 @@ ALTER SEQUENCE public.refs_id_seq OWNED BY public.refs.id;
 CREATE TABLE public.repositories (
     id bigint NOT NULL,
     name character varying NOT NULL,
+    display_name character varying NOT NULL,
+    created_by integer NOT NULL,
     url character varying NOT NULL,
-    server_provider_id integer NOT NULL,
+    owner_id integer NOT NULL,
+    owner_type character varying NOT NULL,
+    server_type character varying NOT NULL,
     last_synced_at timestamp without time zone
 );
 
@@ -255,107 +391,44 @@ ALTER SEQUENCE public.repository_permissions_id_seq OWNED BY public.repository_p
 
 
 --
+-- Name: repository_user_settings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.repository_user_settings (
+    id bigint NOT NULL,
+    username character varying NOT NULL,
+    value character varying NOT NULL,
+    repository_permission_id integer NOT NULL,
+    is_syncing boolean
+);
+
+
+--
+-- Name: repository_user_settings_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.repository_user_settings_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: repository_user_settings_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.repository_user_settings_id_seq OWNED BY public.repository_user_settings.id;
+
+
+--
 -- Name: schema_migrations; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.schema_migrations (
     version character varying NOT NULL
 );
-
-
---
--- Name: server_provider_permissions; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.server_provider_permissions (
-    id bigint NOT NULL,
-    user_id integer NOT NULL,
-    server_provider_id integer NOT NULL,
-    permission integer NOT NULL
-);
-
-
---
--- Name: server_provider_permissions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.server_provider_permissions_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: server_provider_permissions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.server_provider_permissions_id_seq OWNED BY public.server_provider_permissions.id;
-
-
---
--- Name: server_provider_user_settings; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.server_provider_user_settings (
-    id bigint NOT NULL,
-    username character varying NOT NULL,
-    value character varying NOT NULL,
-    server_provider_user_id integer NOT NULL,
-    is_syncing boolean
-);
-
-
---
--- Name: server_provider_user_settings_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.server_provider_user_settings_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: server_provider_user_settings_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.server_provider_user_settings_id_seq OWNED BY public.server_provider_user_settings.id;
-
-
---
--- Name: server_providers; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.server_providers (
-    id bigint NOT NULL,
-    name character varying NOT NULL,
-    url character varying NOT NULL,
-    type character varying NOT NULL,
-    listener_token character varying
-);
-
-
---
--- Name: server_providers_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.server_providers_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: server_providers_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.server_providers_id_seq OWNED BY public.server_providers.id;
 
 
 --
@@ -440,10 +513,52 @@ ALTER SEQUENCE public.users_id_seq OWNED BY public.users.id;
 
 
 --
+-- Name: webhooks; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.webhooks (
+    id bigint NOT NULL,
+    repository_id bigint,
+    name character varying,
+    url character varying,
+    active boolean,
+    insecure_ssl boolean,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: webhooks_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.webhooks_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: webhooks_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.webhooks_id_seq OWNED BY public.webhooks.id;
+
+
+--
 -- Name: commits id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.commits ALTER COLUMN id SET DEFAULT nextval('public.commits_id_seq'::regclass);
+
+
+--
+-- Name: oauth_access_grants id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_access_grants ALTER COLUMN id SET DEFAULT nextval('public.oauth_access_grants_id_seq'::regclass);
 
 
 --
@@ -458,6 +573,22 @@ ALTER TABLE ONLY public.oauth_access_tokens ALTER COLUMN id SET DEFAULT nextval(
 --
 
 ALTER TABLE ONLY public.oauth_applications ALTER COLUMN id SET DEFAULT nextval('public.oauth_applications_id_seq'::regclass);
+
+
+--
+-- Name: organization_permissions id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organization_permissions ALTER COLUMN id SET DEFAULT nextval('public.organization_permissions_id_seq'::regclass);
+
+
+ALTER TABLE ONLY public.organization_invitations ALTER COLUMN id SET DEFAULT nextval('public.organization_invitations_id_seq'::regclass);
+
+--
+-- Name: organizations id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organizations ALTER COLUMN id SET DEFAULT nextval('public.organizations_id_seq'::regclass);
 
 
 --
@@ -489,24 +620,10 @@ ALTER TABLE ONLY public.repository_permissions ALTER COLUMN id SET DEFAULT nextv
 
 
 --
--- Name: server_provider_permissions id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: repository_user_settings id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.server_provider_permissions ALTER COLUMN id SET DEFAULT nextval('public.server_provider_permissions_id_seq'::regclass);
-
-
---
--- Name: server_provider_user_settings id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.server_provider_user_settings ALTER COLUMN id SET DEFAULT nextval('public.server_provider_user_settings_id_seq'::regclass);
-
-
---
--- Name: server_providers id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.server_providers ALTER COLUMN id SET DEFAULT nextval('public.server_providers_id_seq'::regclass);
+ALTER TABLE ONLY public.repository_user_settings ALTER COLUMN id SET DEFAULT nextval('public.repository_user_settings_id_seq'::regclass);
 
 
 --
@@ -521,6 +638,13 @@ ALTER TABLE ONLY public.settings ALTER COLUMN id SET DEFAULT nextval('public.set
 --
 
 ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_id_seq'::regclass);
+
+
+--
+-- Name: webhooks id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.webhooks ALTER COLUMN id SET DEFAULT nextval('public.webhooks_id_seq'::regclass);
 
 
 --
@@ -540,6 +664,14 @@ ALTER TABLE ONLY public.commits
 
 
 --
+-- Name: oauth_access_grants oauth_access_grants_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_access_grants
+    ADD CONSTRAINT oauth_access_grants_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: oauth_access_tokens oauth_access_tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -553,6 +685,29 @@ ALTER TABLE ONLY public.oauth_access_tokens
 
 ALTER TABLE ONLY public.oauth_applications
     ADD CONSTRAINT oauth_applications_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: organization_permissions organization_permissions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organization_permissions
+    ADD CONSTRAINT organization_permissions_pkey PRIMARY KEY (id);
+
+
+-- Name: organization_invitations organization_invitations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organization_invitations
+    ADD CONSTRAINT organization_invitations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: organizations organizations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organizations
+    ADD CONSTRAINT organizations_pkey PRIMARY KEY (id);
 
 
 --
@@ -588,35 +743,19 @@ ALTER TABLE ONLY public.repository_permissions
 
 
 --
+-- Name: repository_user_settings repository_user_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.repository_user_settings
+    ADD CONSTRAINT repository_user_settings_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: schema_migrations schema_migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.schema_migrations
     ADD CONSTRAINT schema_migrations_pkey PRIMARY KEY (version);
-
-
---
--- Name: server_provider_permissions server_provider_permissions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.server_provider_permissions
-    ADD CONSTRAINT server_provider_permissions_pkey PRIMARY KEY (id);
-
-
---
--- Name: server_provider_user_settings server_provider_user_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.server_provider_user_settings
-    ADD CONSTRAINT server_provider_user_settings_pkey PRIMARY KEY (id);
-
-
---
--- Name: server_providers server_providers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.server_providers
-    ADD CONSTRAINT server_providers_pkey PRIMARY KEY (id);
 
 
 --
@@ -633,6 +772,14 @@ ALTER TABLE ONLY public.settings
 
 ALTER TABLE ONLY public.users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: webhooks webhooks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.webhooks
+    ADD CONSTRAINT webhooks_pkey PRIMARY KEY (id);
 
 
 --
@@ -657,6 +804,90 @@ CREATE INDEX index_commits_on_user_id ON public.commits USING btree (user_id);
 
 
 --
+-- Name: index_oauth_access_grants_on_application_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_oauth_access_grants_on_application_id ON public.oauth_access_grants USING btree (application_id);
+
+
+--
+-- Name: index_oauth_access_grants_on_resource_owner_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_oauth_access_grants_on_resource_owner_id ON public.oauth_access_grants USING btree (resource_owner_id);
+
+
+--
+-- Name: index_oauth_access_grants_on_token; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_oauth_access_grants_on_token ON public.oauth_access_grants USING btree (token);
+
+
+--
+-- Name: index_oauth_access_tokens_on_application_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_oauth_access_tokens_on_application_id ON public.oauth_access_tokens USING btree (application_id);
+
+
+--
+-- Name: index_oauth_access_tokens_on_refresh_token; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_oauth_access_tokens_on_refresh_token ON public.oauth_access_tokens USING btree (refresh_token);
+
+
+--
+-- Name: index_oauth_access_tokens_on_resource_owner_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_oauth_access_tokens_on_resource_owner_id ON public.oauth_access_tokens USING btree (resource_owner_id);
+
+
+--
+-- Name: index_oauth_access_tokens_on_token; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_oauth_access_tokens_on_token ON public.oauth_access_tokens USING btree (token);
+
+
+--
+-- Name: index_oauth_applications_on_uid; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_oauth_applications_on_uid ON public.oauth_applications USING btree (uid);
+
+
+--
+-- Name: index_organization_permissions_on_organization_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_organization_permissions_on_organization_id ON public.organization_permissions USING btree (organization_id);
+
+
+--
+-- Name: index_organization_permissions_on_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_organization_permissions_on_user_id ON public.organization_permissions USING btree (user_id);
+
+
+
+--
+-- Name: index_organization_invitations_on_token; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_organization_invitations_on_token_id ON public.organization_invitations USING btree (token);
+
+--
+-- Name: index_organizations_on_name; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_organizations_on_name ON public.organizations USING btree (name);
+
+
+--
 -- Name: index_pull_requests_on_repository_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -678,10 +909,10 @@ CREATE UNIQUE INDEX index_refs_on_repository_id_and_type_and_name ON public.refs
 
 
 --
--- Name: index_repositories_on_server_provider_id_and_name; Type: INDEX; Schema: public; Owner: -
+-- Name: index_repositories_on_owner_id_and_name; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX index_repositories_on_server_provider_id_and_name ON public.repositories USING btree (server_provider_id, name);
+CREATE UNIQUE INDEX index_repositories_on_owner_id_and_name ON public.repositories USING btree (owner_id, name);
 
 
 --
@@ -699,38 +930,10 @@ CREATE INDEX index_repository_permissions_on_user_id ON public.repository_permis
 
 
 --
--- Name: index_server_provider_permissions_on_server_provider_id; Type: INDEX; Schema: public; Owner: -
+-- Name: index_repository_user_settings_on_repository_permission_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX index_server_provider_permissions_on_server_provider_id ON public.server_provider_permissions USING btree (server_provider_id);
-
-
---
--- Name: index_server_provider_permissions_on_user_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX index_server_provider_permissions_on_user_id ON public.server_provider_permissions USING btree (user_id);
-
-
---
--- Name: index_server_provider_user_settings_on_server_provider_user_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX index_server_provider_user_settings_on_server_provider_user_id ON public.server_provider_user_settings USING btree (server_provider_user_id);
-
-
---
--- Name: index_server_providers_on_listener_token; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX index_server_providers_on_listener_token ON public.server_providers USING btree (listener_token);
-
-
---
--- Name: index_server_providers_on_type_and_url; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX index_server_providers_on_type_and_url ON public.server_providers USING btree (type, url);
+CREATE INDEX index_repository_user_settings_on_repository_permission_id ON public.repository_user_settings USING btree (repository_permission_id);
 
 
 --
@@ -769,6 +972,13 @@ CREATE UNIQUE INDEX index_users_on_jti ON public.users USING btree (jti);
 
 
 --
+-- Name: index_webhooks_on_repository_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_webhooks_on_repository_id ON public.webhooks USING btree (repository_id);
+
+
+--
 -- Name: pull_requests fk_rails_01ee288f83; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -793,27 +1003,27 @@ ALTER TABLE ONLY public.pull_requests
 
 
 --
+-- Name: organization_permissions fk_rails_0d3a3da658; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organization_permissions
+    ADD CONSTRAINT fk_rails_0d3a3da658 FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
+-- Name: oauth_access_grants fk_rails_330c32d8d9; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_access_grants
+    ADD CONSTRAINT fk_rails_330c32d8d9 FOREIGN KEY (resource_owner_id) REFERENCES public.users(id);
+
+
+--
 -- Name: commits fk_rails_409a66d7e3; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.commits
     ADD CONSTRAINT fk_rails_409a66d7e3 FOREIGN KEY (user_id) REFERENCES public.users(id);
-
-
---
--- Name: server_provider_user_settings fk_rails_5217d62666; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.server_provider_user_settings
-    ADD CONSTRAINT fk_rails_5217d62666 FOREIGN KEY (server_provider_user_id) REFERENCES public.server_provider_permissions(id);
-
-
---
--- Name: server_provider_permissions fk_rails_68ed2dab2a; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.server_provider_permissions
-    ADD CONSTRAINT fk_rails_68ed2dab2a FOREIGN KEY (user_id) REFERENCES public.users(id);
 
 
 --
@@ -825,27 +1035,11 @@ ALTER TABLE ONLY public.oauth_access_tokens
 
 
 --
--- Name: server_provider_permissions fk_rails_8c5308714c; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.server_provider_permissions
-    ADD CONSTRAINT fk_rails_8c5308714c FOREIGN KEY (server_provider_id) REFERENCES public.server_providers(id);
-
-
---
 -- Name: pull_requests fk_rails_8fa503b550; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.pull_requests
     ADD CONSTRAINT fk_rails_8fa503b550 FOREIGN KEY (repository_id) REFERENCES public.repositories(id);
-
-
---
--- Name: repositories fk_rails_96f1d80c03; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.repositories
-    ADD CONSTRAINT fk_rails_96f1d80c03 FOREIGN KEY (server_provider_id) REFERENCES public.server_providers(id);
 
 
 --
@@ -865,6 +1059,30 @@ ALTER TABLE ONLY public.commits
 
 
 --
+-- Name: repository_user_settings fk_rails_aa9d93173c; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.repository_user_settings
+    ADD CONSTRAINT fk_rails_aa9d93173c FOREIGN KEY (repository_permission_id) REFERENCES public.repository_permissions(id);
+
+
+--
+-- Name: oauth_access_grants fk_rails_b4b53e07b8; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_access_grants
+    ADD CONSTRAINT fk_rails_b4b53e07b8 FOREIGN KEY (application_id) REFERENCES public.oauth_applications(id);
+
+
+--
+-- Name: organization_permissions fk_rails_b5b0abe7a7; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organization_permissions
+    ADD CONSTRAINT fk_rails_b5b0abe7a7 FOREIGN KEY (organization_id) REFERENCES public.organizations(id);
+
+
+--
 -- Name: commits fk_rails_c8b4639bab; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -873,11 +1091,11 @@ ALTER TABLE ONLY public.commits
 
 
 --
--- Name: oauth_applications fk_rails_cc886e315a; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: webhooks fk_rails_d5fe0af453; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.oauth_applications
-    ADD CONSTRAINT fk_rails_cc886e315a FOREIGN KEY (owner_id) REFERENCES public.users(id);
+ALTER TABLE ONLY public.webhooks
+    ADD CONSTRAINT fk_rails_d5fe0af453 FOREIGN KEY (repository_id) REFERENCES public.repositories(id);
 
 
 --
@@ -918,10 +1136,10 @@ INSERT INTO "schema_migrations" (version) VALUES
 ('20210615082153'),
 ('20210615082201'),
 ('20210615082204'),
-('20210615082222'),
-('20210615082227'),
 ('20210615082244'),
 ('20210615082254'),
-('20210615082353');
+('20210615082353'),
+('20210816151517'),
+('20210818115729');
 
 
