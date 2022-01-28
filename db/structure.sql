@@ -278,7 +278,7 @@ ALTER SEQUENCE public.organization_invitations_id_seq OWNED BY public.organizati
 
 CREATE TABLE public.organizations (
     id bigint NOT NULL,
-    name character varying NOT NULL,
+    name character varying(255) NOT NULL,
     description character varying,
     listener_token character varying NOT NULL
 );
