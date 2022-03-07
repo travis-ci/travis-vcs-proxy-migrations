@@ -381,7 +381,8 @@ CREATE TABLE public.repositories (
     owner_id integer NOT NULL,
     owner_type character varying NOT NULL,
     server_type character varying NOT NULL,
-    last_synced_at timestamp without time zone
+    last_synced_at timestamp without time zone,
+    listener_token character varying NOT NULL
 );
 
 
